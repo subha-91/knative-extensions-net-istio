@@ -34,16 +34,10 @@ func MakeVirtualService(sks *v1alpha1.ServerlessService) *v1beta1.VirtualService
 	name := sks.Status.PrivateServiceName
 	host := pkgnetwork.GetServiceHostname(name, ns)
 
-	return &v1beta1.VirtualService{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			Namespace:       sks.Namespace,
-			OwnerReferences: []metav1.OwnerReference{*kmeta.NewControllerRef(sks)},
-		},
-		Spec: istiov1beta1.VirtualService{
-			Hosts: []string{host},
-			Http: []*istiov1beta1.HTTPRoute{{
-				Match: []*istiov1beta1.HTTPMatchRequest{{
+	httpRoutes := []*istiov1beta1.HTTPRoute{
+		{
+			Match: []*istiov1beta1.HTTPMatchRequest{
+				{
 					Headers: map[string]*istiov1beta1.StringMatch{
 						header.PassthroughLoadbalancingKey: {
 							MatchType: &istiov1beta1.StringMatch_Exact{
@@ -51,21 +45,35 @@ func MakeVirtualService(sks *v1alpha1.ServerlessService) *v1beta1.VirtualService
 							},
 						},
 					},
-				}},
-				Route: []*istiov1beta1.HTTPRouteDestination{{
-					Destination: &istiov1beta1.Destination{
-						Host:   host,
-						Subset: subsetDirect,
-					},
-				}},
-			}, {
-				Route: []*istiov1beta1.HTTPRouteDestination{{
-					Destination: &istiov1beta1.Destination{
-						Host:   host,
-						Subset: subsetNormal,
-					},
-				}},
+				},
+			},
+			Route: []*istiov1beta1.HTTPRouteDestination{{
+				Destination: &istiov1beta1.Destination{
+					Host:   host,
+					Subset: subsetDirect,
+				},
+			}},
+		}, {
+			Route: []*istiov1beta1.HTTPRouteDestination{{
+				Destination: &istiov1beta1.Destination{
+					Host:   host,
+					Subset: subsetNormal,
+				},
 			}},
 		},
 	}
+
+	virtualService := &v1beta1.VirtualService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			Namespace:       ns,
+			OwnerReferences: []metav1.OwnerReference{*kmeta.NewControllerRef(sks)},
+		},
+		Spec: istiov1beta1.VirtualService{
+			Hosts: []string{host},
+			Http:  httpRoutes,
+		},
+	}
+
+	return virtualService
 }
